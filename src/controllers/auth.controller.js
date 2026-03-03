@@ -22,7 +22,7 @@ async function userRegisterController(req, res) {
 
     const token = jwt.sign({userId : user._id}, process.env.JWT_SECRET_KEY, {expiresIn : "1d"})
 
-    res.cookies("token", token)
+    res.cookie("token", token)
 
     res.status(201).json({
         user : {
@@ -34,6 +34,6 @@ async function userRegisterController(req, res) {
     })
 }
 
-module.expoorts = {
+module.exports = {
     userRegisterController
 }
