@@ -47,7 +47,7 @@ async function sendRegistrationEmail(userEmail, name) {
     <p>Best regards,<br>The BACKEND-LEDGER Team</p>
   `;
 
-  await sendEmail(to, subject, text, html);
+  await sendEmail(userEmail, subject, text, html);
 }
 
 module.exports = {
