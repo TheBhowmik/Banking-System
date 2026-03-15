@@ -94,19 +94,19 @@ async function createTransaction(req, res) {
         status: 'pending'
     }, {session})
 
-    const debitLedgerEntry = await ledgerModel.create({
+    const debitLedgerEntry = await ledgerModel.create([{
         account: fromAccount,
         transaction: transaction._id,
         type: 'debit',
         amount: amount
-    }, {session})
+    }], {session})
 
-    const creditLedgerEntry = await ledgerModel.create({
+    const creditLedgerEntry = await ledgerModel.create([{
         account: toAccount,
         transaction: transaction._id,
         type: 'credit',
         amount: amount
-    }, {session})
+    }], {session})
 
     transaction.status = 'completed'
     await transaction.save({session})
@@ -126,6 +126,70 @@ async function createTransaction(req, res) {
 
 }
 
+async function createInitialFundsTransaction(req, res) {
+
+    const  {toAccount, amount, idempotencyKey} = req.body
+
+    if(!toAccount || !amount || !idempotencyKey){
+        return res.status(400).json({message: 'Missing required fields'})
+    }
+
+    const toUserAccount = await accountModel.findOne({
+        _id: toAccount
+    })
+
+    if(!toUserAccount){
+        return res.status(404).json({message: 'Account not found'})
+    }
+
+    const fromUserAccount = await accountModel.findOne({
+        systemAccount : true,
+        user : req.user._id //since only system users can create initial funds transactions, we can use the user id from the request to find the system account associated with that user. This ensures that the initial funds transaction is properly attributed to the correct system account, allowing for accurate tracking and auditing of transactions within the banking system.
+    })
+
+    if(!fromUserAccount){
+        return res.status(404).json({message: 'System account not found for the user'})
+    }
+
+    const session = await mongoose.startSession()
+    session.startTransaction()
+
+    const transaction = new transactionModel({
+        fromAccount: fromUserAccount._id,
+        toAccount,
+        amount,
+        idempotencyKey,
+        status: 'pending'
+    })
+
+    const debitLedgerEntry = await ledgerModel.create([{
+        account: fromUserAccount._id,
+        transaction: transaction._id,
+        type: 'debit',
+        amount: amount
+    }], {session})
+
+    const creditLedgerEntry = await ledgerModel.create([{
+        account: toAccount,
+        transaction: transaction._id,
+        type: 'credit',
+        amount: amount
+    }], {session})
+
+    transaction.status = 'completed'
+    await transaction.save({session})
+
+    await session.commitTransaction()
+    session.endSession()
+
+    return res.status(201).json({
+        message: "Initial funds transaction completed successfully",
+        transaction: transaction
+    })
+
+}
+
 module.exports = {
-    createTransaction
+    createTransaction,
+    createInitialFundsTransaction
 }

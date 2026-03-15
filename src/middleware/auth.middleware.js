@@ -22,6 +22,32 @@ async function authMiddleware(req, res, next) {
     }
 }
 
+async function authSystemUserMiddleware(req, res, next) {
+
+    const  token = req.cookies.token || req.header.authorization?.split(" ")[1];
+
+    if(!token){
+        return res.status(401).json({message : "Authentication token is missing."});
+    }
+
+    try {
+        const decoded = jwt.verify(token, process.env.JWT_SECRET);
+
+        const user = await userModel.findById(decoded.userId).select("+systemUser"); 
+
+        if(!user || !user.systemUser){
+            return res.status(403).json({message : "Access denied. System user privileges required."});
+        }
+
+        req.user = user; // Attach user object to request(req) for use in further processing in controllers
+
+        return next(); // Proceed to the next middleware or route handler
+    } catch (error) {
+        return res.status(401).json({message : "Invalid authentication token."});
+    }
+}
+
 module.exports = {
-    authMiddleware
+    authMiddleware,
+    authSystemUserMiddleware
 };
