@@ -82,6 +82,50 @@ async function createTransaction(req, res) {
 
     //create a session for transaction
 
-    
+    const session = await mongoose.startSession() //startSession is a method provided by the mongoose library that allows us to create a new session for performing operations on the database. A session is a context in which we can execute multiple operations as a single unit of work. It provides features like transactions, which allow us to ensure data integrity and consistency when performing multiple related operations.
+    session.startTransaction()
+    //startTransaction is given by the mongoose library and it is used to start a transaction session. It allows us to execute multiple operations as a single unit of work. If any operation within the transaction fails, we can roll back all changes made during the transaction to maintain data integrity.
 
+    const transaction = await transactionModel.create({
+        fromAccount,
+        toAccount,
+        amount,
+        idempotencyKey,
+        status: 'pending'
+    }, {session})
+
+    const debitLedgerEntry = await ledgerModel.create({
+        account: fromAccount,
+        transaction: transaction._id,
+        type: 'debit',
+        amount: amount
+    }, {session})
+
+    const creditLedgerEntry = await ledgerModel.create({
+        account: toAccount,
+        transaction: transaction._id,
+        type: 'credit',
+        amount: amount
+    }, {session})
+
+    transaction.status = 'completed'
+    await transaction.save({session})
+
+    await session.commitTransaction()
+    session.endSession()
+
+    // Send email notification to both parties
+
+     await emailService.sendTransactionEmail(req.user.email, req.user.name, amount, toAccount)
+
+    return res.status(201).json({
+        message: "Transaction completed successfully",
+        transaction: transaction
+    })
+
+
+}
+
+module.exports = {
+    createTransaction
 }
